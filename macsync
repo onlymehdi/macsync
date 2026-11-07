@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+import json, os, subprocess, sys, socket, datetime
+
+SYNC_DIR = os.path.expanduser("~/Library/Mobile Documents/com~apple~CloudDocs/MacSync")
+SNAP = os.path.join(SYNC_DIR, "snapshot.json")
+
+
+def run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def get_dock():
+    out = run(["dockutil", "--list"])
+    items = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[2] == "persistentApps":
+            items.append({"label": parts[0], "path": parts[1].replace("file://", "").replace("%20", " ").rstrip("/")})
+    return items
+
+
+def get_brew():
+    casks = run(["brew", "list", "--cask"]).split()
+    formulae = run(["brew", "leaves"]).split()
+    return {"casks": casks, "formulae": formulae}
+
+
+def get_mas():
+    apps = []
+    for line in run(["mas", "list"]).splitlines():
+        parts = line.split(None, 1)
+        if parts and parts[0].isdigit():
+            apps.append({"id": parts[0], "name": parts[1] if len(parts) > 1 else ""})
+    return apps
+
+
+def push():
+    os.makedirs(SYNC_DIR, exist_ok=True)
+    snap = {
+        "host": socket.gethostname(),
+        "time": datetime.datetime.now().isoformat(timespec="seconds"),
+        "dock": get_dock(),
+        "brew": get_brew(),
+        "mas": get_mas(),
+    }
+    with open(SNAP, "w") as f:
+        json.dump(snap, f, indent=2)
+    print(f"Saved {len(snap['dock'])} dock items, {len(snap['brew']['casks'])} casks, {len(snap['mas'])} App Store apps.")
+
+
+def pull():
+    if not os.path.exists(SNAP):
+        print("No snapshot found. Run push on your main Mac first.")
+        sys.exit(1)
+    snap = json.load(open(SNAP))
+    for c in snap["brew"]["casks"]:
+        subprocess.run(["brew", "install", "--cask", c])
+    for fm in snap["brew"]["formulae"]:
+        subprocess.run(["brew", "install", fm])
+    for a in snap["mas"]:
+        subprocess.run(["mas", "install", a["id"]])
+    subprocess.run(["dockutil", "--remove", "all", "--no-restart"])
+    for item in snap["dock"]:
+        if os.path.exists(item["path"]):
+            subprocess.run(["dockutil", "--add", item["path"], "--no-restart"])
+    subprocess.run(["killall", "Dock"])
+    print(f"Restored from {snap['host']} saved {snap['time']}.")
+
+
+def status():
+    if not os.path.exists(SNAP):
+        print("No snapshot yet.")
+        return
+    s = json.load(open(SNAP))
+    print(f"Last push from {s['host']} at {s['time']}: {len(s['dock'])} dock items, {len(s['brew']['casks'])} casks, {len(s['mas'])} App Store apps.")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    {"push": push, "pull": pull, "status": status}.get(cmd, status)()

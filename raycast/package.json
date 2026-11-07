@@ -1,0 +1,16 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "macsync",
+  "title": "MacSync",
+  "description": "Sync your Dock and apps across Macs",
+  "icon": "command-icon.png",
+  "author": "onlymehdi",
+  "license": "MIT",
+  "commands": [
+    { "name": "push", "title": "Push Setup", "description": "Save this Mac's Dock and apps to iCloud", "mode": "no-view" },
+    { "name": "pull", "title": "Pull Setup", "description": "Apply the saved Dock and apps to this Mac", "mode": "no-view" },
+    { "name": "status", "title": "Show Status", "description": "Show the last saved snapshot", "mode": "no-view" }
+  ],
+  "dependencies": { "@raycast/api": "^1.80.0" },
+  "scripts": { "dev": "ray develop", "build": "ray build" }
+}
